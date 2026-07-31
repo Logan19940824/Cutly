@@ -1,15 +1,21 @@
 ARG NODE_IMAGE=node:24-alpine
 FROM ${NODE_IMAGE} AS base
+ARG NPM_REGISTRY=https://registry.npmmirror.com
 WORKDIR /workspace
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV NPM_CONFIG_REGISTRY=${NPM_REGISTRY}
+ENV NPM_CONFIG_FETCH_RETRIES=5
+ENV NPM_CONFIG_FETCH_RETRY_MINTIMEOUT=20000
+ENV NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT=120000
+ENV NPM_CONFIG_FETCH_TIMEOUT=300000
 
 FROM base AS dependencies
 COPY package.json package-lock.json ./
-RUN npm ci --include=dev
+RUN --mount=type=cache,target=/root/.npm,sharing=locked npm config get registry && npm ci --include=dev
 
 FROM base AS production-dependencies
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
+RUN --mount=type=cache,target=/root/.npm,sharing=locked npm config get registry && npm ci --omit=dev
 
 FROM base AS build
 ENV NODE_ENV=production

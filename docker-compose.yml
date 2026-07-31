@@ -36,6 +36,7 @@ services:
       target: runtime
       args:
         NODE_IMAGE: ${NODE_IMAGE:-node:24-alpine}
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
     command: sh -c "npx prisma db push --skip-generate && npm run db:seed"
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-cutout}:${POSTGRES_PASSWORD:-cutout}@postgres:5432/${POSTGRES_DB:-cutout}
@@ -50,6 +51,7 @@ services:
       target: runtime
       args:
         NODE_IMAGE: ${NODE_IMAGE:-node:24-alpine}
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
     restart: unless-stopped
     ports:
       - "${APP_PORT:-3000}:3000"
@@ -86,6 +88,7 @@ services:
       target: runtime
       args:
         NODE_IMAGE: ${NODE_IMAGE:-node:24-alpine}
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
     command: npm run worker
     restart: unless-stopped
     environment: *app-environment

@@ -13,6 +13,8 @@ Copy-Item .env.example .env
 docker compose up -d --build
 ```
 
+Docker 构建默认使用 `https://registry.npmmirror.com` 安装 npm 依赖。需要切换镜像时，在 `.env` 中修改 `NPM_REGISTRY`。
+
 Compose 会启动：
 
 - `postgres`：业务数据库
