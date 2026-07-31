@@ -1,12 +1,12 @@
 # Cutly
 
-商业化 Web 图片抠图和尺寸修改工具。
+自动抠图裁剪工具，面向商业化 Web 图片抠图和尺寸修改场景。
 
 ## 本地启动
 
 ### 完整 Docker 启动
 
-复制环境变量文件，填写 OSS 和 PhotoRoom 配置，然后启动全部服务：
+复制环境变量文件，填写阿里云 OSS 和视觉智能配置，然后启动全部服务：
 
 ```powershell
 Copy-Item .env.example .env
