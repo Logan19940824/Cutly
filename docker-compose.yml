@@ -1,0 +1,100 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-cutout}
+      POSTGRES_USER: ${POSTGRES_USER:-cutout}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cutout}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - cutout-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - cutout-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  db-init:
+    build:
+      context: .
+      target: runtime
+      args:
+        NODE_IMAGE: ${NODE_IMAGE:-node:24-alpine}
+    command: sh -c "npx prisma db push --skip-generate && npm run db:seed"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-cutout}:${POSTGRES_PASSWORD:-cutout}@postgres:5432/${POSTGRES_DB:-cutout}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  web:
+    build:
+      context: .
+      target: runtime
+      args:
+        NODE_IMAGE: ${NODE_IMAGE:-node:24-alpine}
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    environment: &app-environment
+      NODE_ENV: production
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      SESSION_SECRET: ${SESSION_SECRET:-development-only-change-me-32-characters}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-cutout}:${POSTGRES_PASSWORD:-cutout}@postgres:5432/${POSTGRES_DB:-cutout}
+      REDIS_URL: redis://redis:6379
+      ALIYUN_OSS_REGION: ${ALIYUN_OSS_REGION:-}
+      ALIYUN_OSS_BUCKET: ${ALIYUN_OSS_BUCKET:-}
+      ALIYUN_OSS_ACCESS_KEY_ID: ${ALIYUN_OSS_ACCESS_KEY_ID:-}
+      ALIYUN_OSS_ACCESS_KEY_SECRET: ${ALIYUN_OSS_ACCESS_KEY_SECRET:-}
+      ALIYUN_OSS_STS_ROLE_ARN: ${ALIYUN_OSS_STS_ROLE_ARN:-}
+      ALIYUN_VIAPI_REGION: ${ALIYUN_VIAPI_REGION:-cn-shanghai}
+      ALIYUN_VIAPI_ENDPOINT: ${ALIYUN_VIAPI_ENDPOINT:-imageseg.cn-shanghai.aliyuncs.com}
+      ALIYUN_VIAPI_ACCESS_KEY_ID: ${ALIYUN_VIAPI_ACCESS_KEY_ID:-}
+      ALIYUN_VIAPI_ACCESS_KEY_SECRET: ${ALIYUN_VIAPI_ACCESS_KEY_SECRET:-}
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:3000/app"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  worker:
+    build:
+      context: .
+      target: runtime
+      args:
+        NODE_IMAGE: ${NODE_IMAGE:-node:24-alpine}
+    command: npm run worker
+    restart: unless-stopped
+    environment: *app-environment
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+volumes:
+  cutout-postgres:
+  cutout-redis:

@@ -1,0 +1,55 @@
+{
+  "name": "cutout",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:seed": "tsx --env-file-if-exists=.env prisma/seed.ts",
+    "worker": "tsx src/worker/index.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@alicloud/imageseg20191230": "^4.0.1",
+    "@alicloud/openapi-client": "^0.4.15",
+    "@alicloud/tea-util": "^1.4.11",
+    "@prisma/client": "^6.15.0",
+    "ali-oss": "^6.23.0",
+    "argon2": "^0.44.0",
+    "bullmq": "^5.58.5",
+    "graceful-fs": "^4.2.11",
+    "ioredis": "^5.7.0",
+    "jose": "^6.1.0",
+    "lucide-react": "^0.542.0",
+    "next": "^15.5.2",
+    "postcss": "^8.5.24",
+    "prisma": "^6.15.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "sharp": "^0.35.3",
+    "tsx": "^4.20.5",
+    "zod": "^4.1.5"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.3.1",
+    "@types/ali-oss": "^6.23.3",
+    "@types/node": "^24.3.0",
+    "@types/react": "^19.1.12",
+    "@types/react-dom": "^19.1.9",
+    "eslint": "^9.34.0",
+    "eslint-config-next": "^15.5.2",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "overrides": {
+    "postcss": "$postcss",
+    "sharp": "$sharp"
+  }
+}

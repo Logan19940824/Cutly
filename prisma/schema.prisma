@@ -1,0 +1,292 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  SUPPORT
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  CANCELED
+  REFUNDED
+  EXPIRED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+enum MembershipStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+}
+
+enum CreditType {
+  SIGNUP_GRANT
+  PLAN_GRANT
+  JOB_HOLD
+  JOB_CAPTURE
+  JOB_RELEASE
+  REFUND_REVOKE
+  ADMIN_ADJUSTMENT
+}
+
+enum AssetKind {
+  ORIGINAL
+  CUTOUT
+  EXPORT
+  THUMBNAIL
+}
+
+enum JobType {
+  REMOVE_BACKGROUND
+  EXPORT
+}
+
+enum JobStatus {
+  PENDING
+  QUEUED
+  PROCESSING
+  RETRYING
+  SUCCEEDED
+  FAILED
+  CANCELED
+}
+
+model User {
+  id              String       @id @default(uuid()) @db.Uuid
+  email           String       @unique
+  passwordHash    String?      @map("password_hash")
+  emailVerifiedAt DateTime?    @map("email_verified_at")
+  role            UserRole     @default(USER)
+  status          UserStatus   @default(ACTIVE)
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+  deletedAt       DateTime?    @map("deleted_at")
+  sessions        Session[]
+  orders          Order[]
+  memberships     Membership[]
+  creditAccount   CreditAccount?
+  creditLedger    CreditLedger[]
+  assets          ImageAsset[]
+  jobs            ImageJob[]
+  auditLogs       AdminAuditLog[] @relation("AuditActor")
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(uuid()) @db.Uuid
+  tokenHash String   @unique @map("token_hash")
+  userId    String   @map("user_id") @db.Uuid
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model Plan {
+  id           String   @id @default(uuid()) @db.Uuid
+  code         String   @unique
+  name         String
+  durationDays Int      @map("duration_days")
+  credits      Int
+  priceAmount  Int      @map("price_amount")
+  currency     String   @default("CNY")
+  entitlements Json
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at")
+  orders       Order[]
+
+  @@map("plans")
+}
+
+model Order {
+  id                  String      @id @default(uuid()) @db.Uuid
+  orderNo             String      @unique @map("order_no")
+  userId              String      @map("user_id") @db.Uuid
+  planId              String      @map("plan_id") @db.Uuid
+  amount              Int
+  currency            String
+  planSnapshot        Json        @map("plan_snapshot")
+  status              OrderStatus @default(PENDING)
+  paidAt              DateTime?   @map("paid_at")
+  createdAt           DateTime    @default(now()) @map("created_at")
+  user                User        @relation(fields: [userId], references: [id])
+  plan                Plan        @relation(fields: [planId], references: [id])
+  payments            Payment[]
+  membership          Membership?
+
+  @@index([userId, createdAt])
+  @@map("orders")
+}
+
+model Payment {
+  id                String        @id @default(uuid()) @db.Uuid
+  orderId           String        @map("order_id") @db.Uuid
+  provider          String
+  providerPaymentId String        @map("provider_payment_id")
+  status            PaymentStatus @default(PENDING)
+  amount            Int
+  currency          String
+  rawSummary        Json?         @map("raw_summary")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  order             Order         @relation(fields: [orderId], references: [id])
+
+  @@unique([provider, providerPaymentId])
+  @@map("payments")
+}
+
+model PaymentEvent {
+  id              String    @id @default(uuid()) @db.Uuid
+  provider        String
+  providerEventId String    @map("provider_event_id")
+  eventType       String    @map("event_type")
+  payload         Json
+  processedAt     DateTime? @map("processed_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  @@unique([provider, providerEventId])
+  @@map("payment_events")
+}
+
+model Membership {
+  id                  String           @id @default(uuid()) @db.Uuid
+  userId              String           @map("user_id") @db.Uuid
+  planCode            String           @map("plan_code")
+  startsAt            DateTime         @map("starts_at")
+  endsAt              DateTime         @map("ends_at")
+  status              MembershipStatus @default(ACTIVE)
+  sourceOrderId       String           @unique @map("source_order_id") @db.Uuid
+  entitlementSnapshot Json             @map("entitlement_snapshot")
+  createdAt           DateTime         @default(now()) @map("created_at")
+  user                User             @relation(fields: [userId], references: [id])
+  sourceOrder         Order            @relation(fields: [sourceOrderId], references: [id])
+
+  @@index([userId, endsAt])
+  @@map("memberships")
+}
+
+model CreditAccount {
+  userId    String   @id @map("user_id") @db.Uuid
+  available Int      @default(0)
+  held      Int      @default(0)
+  version   Int      @default(0)
+  updatedAt DateTime @updatedAt @map("updated_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("credit_accounts")
+}
+
+model CreditLedger {
+  id             String     @id @default(uuid()) @db.Uuid
+  userId         String     @map("user_id") @db.Uuid
+  type           CreditType
+  availableDelta Int        @map("available_delta")
+  heldDelta      Int        @map("held_delta")
+  referenceType  String     @map("reference_type")
+  referenceId    String     @map("reference_id")
+  idempotencyKey String     @unique @map("idempotency_key")
+  expiresAt      DateTime?  @map("expires_at")
+  createdAt      DateTime   @default(now()) @map("created_at")
+  user           User       @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+  @@map("credit_ledger")
+}
+
+model ImageAsset {
+  id            String      @id @default(uuid()) @db.Uuid
+  userId        String      @map("user_id") @db.Uuid
+  kind          AssetKind
+  parentAssetId String?     @map("parent_asset_id") @db.Uuid
+  storageKey    String      @unique @map("storage_key")
+  contentHash   String?     @map("content_hash")
+  mimeType      String      @map("mime_type")
+  width         Int?
+  height        Int?
+  byteSize      Int         @map("byte_size")
+  expiresAt     DateTime?   @map("expires_at")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  deletedAt     DateTime?   @map("deleted_at")
+  user          User        @relation(fields: [userId], references: [id])
+  parent        ImageAsset? @relation("AssetParent", fields: [parentAssetId], references: [id])
+  children      ImageAsset[] @relation("AssetParent")
+  sourceJobs    ImageJob[]
+  outputs       JobOutput[]
+
+  @@index([userId, createdAt])
+  @@map("image_assets")
+}
+
+model ImageJob {
+  id                String    @id @default(uuid()) @db.Uuid
+  userId            String    @map("user_id") @db.Uuid
+  type              JobType
+  sourceAssetId     String    @map("source_asset_id") @db.Uuid
+  status            JobStatus @default(PENDING)
+  params            Json
+  provider          String?
+  providerRequestId String?   @map("provider_request_id")
+  attemptCount      Int       @default(0) @map("attempt_count")
+  errorCode         String?   @map("error_code")
+  errorMessage      String?   @map("error_message")
+  idempotencyKey    String    @map("idempotency_key")
+  startedAt         DateTime? @map("started_at")
+  finishedAt        DateTime? @map("finished_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  user              User      @relation(fields: [userId], references: [id])
+  sourceAsset       ImageAsset @relation(fields: [sourceAssetId], references: [id])
+  outputs           JobOutput[]
+
+  @@unique([userId, idempotencyKey])
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@map("image_jobs")
+}
+
+model JobOutput {
+  jobId   String     @map("job_id") @db.Uuid
+  assetId String     @map("asset_id") @db.Uuid
+  job     ImageJob   @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  asset   ImageAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@id([jobId, assetId])
+  @@map("job_outputs")
+}
+
+model AdminAuditLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  actorUserId String   @map("actor_user_id") @db.Uuid
+  action      String
+  targetType  String   @map("target_type")
+  targetId    String   @map("target_id")
+  reason      String
+  metadata    Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+  actor       User     @relation("AuditActor", fields: [actorUserId], references: [id])
+
+  @@index([actorUserId, createdAt])
+  @@map("admin_audit_logs")
+}
