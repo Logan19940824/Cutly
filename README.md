@@ -4,14 +4,22 @@
 
 ## 本地启动
 
-### 完整 Docker 启动
+### Docker 启动（源码挂载开发模式）
 
 复制环境变量文件，填写阿里云 OSS 和视觉智能配置，然后启动全部服务：
 
 ```powershell
 Copy-Item .env.example .env
-docker compose up -d --build
+docker compose up -d
 ```
+
+运行环境镜像由开发机或 CI 构建一次：
+
+```powershell
+docker build -f Dockerfile.dev -t cutly/runtime:node24 .
+```
+
+服务器只需准备同名镜像（或通过 `CUTLY_RUNTIME_IMAGE` 指定仓库镜像），然后执行 `docker compose up -d`，不在服务器执行构建。
 
 Docker 构建默认使用 `https://registry.npmmirror.com` 安装 npm 依赖。需要切换镜像时，在 `.env` 中修改 `NPM_REGISTRY`。
 
@@ -29,6 +37,8 @@ Compose 会启动：
 docker compose ps
 docker compose logs -f web worker
 ```
+
+修改 `src` 或 `prisma` 后无需重新构建镜像；Next.js 会自动刷新，worker 修改后执行 `docker compose restart worker`。只有修改 `package.json` 或 `package-lock.json` 时才需要重新 `--build`。
 
 ### 本机 Node 开发
 
