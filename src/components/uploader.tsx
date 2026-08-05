@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Download, ImagePlus, LoaderCircle, RotateCcw, Upload } from "lucide-react";
+import { createIdempotencyKey } from "@/lib/client-id";
 
 type Phase = "idle" | "uploading" | "queued" | "processing" | "success" | "failed";
 type Output = { id: string; kind: string; mimeType: string; width: number | null; height: number | null; byteSize: number };
@@ -100,7 +101,7 @@ export function Uploader({ loggedIn, hasCredits }: { loggedIn: boolean; hasCredi
       const { job } = await readJson(await fetch("/api/v1/jobs/remove-background", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          storageKey: signed.key, idempotencyKey: crypto.randomUUID(), width, height, fit, format,
+          storageKey: signed.key, idempotencyKey: createIdempotencyKey(), width, height, fit, format,
           background: transparent ? "transparent" : background, cropToSubject,
         }),
       })) as { job: Job };
