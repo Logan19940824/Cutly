@@ -27,8 +27,11 @@ services:
       retries: 10
 
   db-init:
-    image: ${CUTLY_IMAGE:-zyl.zlsdy.com:5000/cutly/app:latest}
-    command: sh -c "npx prisma db push --skip-generate && npm run db:seed"
+    image: ${CUTLY_RUNTIME_IMAGE:-cutly/runtime:node24}
+    command: sh -c "npx prisma generate && npx prisma db push --skip-generate && npm run db:seed"
+    volumes:
+      - .:/workspace
+      - cutout-node-modules:/workspace/node_modules
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-cutout}:${POSTGRES_PASSWORD:-cutout}@postgres:5432/${POSTGRES_DB:-cutout}
     depends_on:
@@ -37,12 +40,17 @@ services:
     restart: "no"
 
   web:
-    image: ${CUTLY_IMAGE:-zyl.zlsdy.com:5000/cutly/app:latest}
+    image: ${CUTLY_RUNTIME_IMAGE:-cutly/runtime:node24}
+    command: sh -c "npx prisma generate && npm run dev -- --hostname 0.0.0.0"
     restart: unless-stopped
+    volumes:
+      - .:/workspace
+      - cutout-node-modules:/workspace/node_modules
+      - cutout-next:/workspace/.next
     ports:
       - "${APP_PORT:-3000}:3000"
     environment: &app-environment
-      NODE_ENV: production
+      NODE_ENV: development
       APP_URL: ${APP_URL:-http://localhost:3000}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       SESSION_SECRET: ${SESSION_SECRET:-development-only-change-me-32-characters}
@@ -70,10 +78,13 @@ services:
       start_period: 20s
 
   worker:
-    image: ${CUTLY_IMAGE:-zyl.zlsdy.com:5000/cutly/app:latest}
-    command: npm run worker
+    image: ${CUTLY_RUNTIME_IMAGE:-cutly/runtime:node24}
+    command: sh -c "npx prisma generate && npm run worker"
     restart: unless-stopped
     environment: *app-environment
+    volumes:
+      - .:/workspace
+      - cutout-node-modules:/workspace/node_modules
     depends_on:
       db-init:
         condition: service_completed_successfully
@@ -83,3 +94,5 @@ services:
 volumes:
   cutout-postgres:
   cutout-redis:
+  cutout-node-modules:
+  cutout-next:

@@ -2,24 +2,31 @@
 
 自动抠图裁剪工具，面向商业化 Web 图片抠图和尺寸修改场景。
 
-## 本地启动
+## Docker 生产部署
 
-### Docker 启动（源码挂载开发模式）
+默认的 `docker-compose.yml` 使用生产应用镜像，Web 服务以 `NODE_ENV=production` 和 `next start` 运行，不挂载服务器源码。
 
-复制环境变量文件，填写阿里云 OSS 和视觉智能配置，然后启动全部服务：
+复制环境变量文件并填写生产配置：
 
 ```powershell
 Copy-Item .env.example .env
-docker compose up -d
 ```
 
-运行环境镜像由开发机或 CI 构建一次：
+在开发机或 CI 构建并推送应用镜像：
 
 ```powershell
-docker build -f Dockerfile.dev -t cutly/runtime:node24 .
+docker build -t zyl.zlsdy.com:5000/cutly/app:latest .
+docker push zyl.zlsdy.com:5000/cutly/app:latest
 ```
 
-服务器只需准备同名镜像（或通过 `CUTLY_RUNTIME_IMAGE` 指定仓库镜像），然后执行 `docker compose up -d`，不在服务器执行构建。
+服务器更新并启动生产服务：
+
+```powershell
+docker compose pull
+docker compose up -d --force-recreate
+```
+
+可通过 `.env` 中的 `CUTLY_IMAGE` 使用其他镜像地址或固定版本。服务器不需要安装 npm 依赖，也不会在启动时编译 Next.js。
 
 Docker 构建默认使用 `https://registry.npmmirror.com` 安装 npm 依赖。需要切换镜像时，在 `.env` 中修改 `NPM_REGISTRY`。
 
@@ -38,7 +45,22 @@ docker compose ps
 docker compose logs -f web worker
 ```
 
-修改 `src` 或 `prisma` 后无需重新构建镜像；Next.js 会自动刷新，worker 修改后执行 `docker compose restart worker`。只有修改 `package.json` 或 `package-lock.json` 时才需要重新 `--build`。
+修改代码后需要重新构建并推送应用镜像，再在服务器执行更新命令。
+
+## Docker 开发模式
+
+需要源码挂载和 Next.js 热更新时，先构建开发运行时镜像，再显式使用开发 Compose 文件：
+
+```powershell
+docker build -f Dockerfile.dev -t cutly/runtime:node24 .
+docker compose -f docker-compose.dev.yml up -d
+```
+
+修改 `src` 或 `prisma` 后无需重建镜像；worker 代码修改后执行：
+
+```powershell
+docker compose -f docker-compose.dev.yml restart worker
+```
 
 ### 本机 Node 开发
 
@@ -47,7 +69,7 @@ docker compose logs -f web worker
 ```powershell
 fnm use
 Copy-Item .env.example .env
-docker compose up -d postgres redis
+docker compose -f docker-compose.dev.yml up -d postgres redis
 npm install
 npx prisma db push
 npm run db:seed
